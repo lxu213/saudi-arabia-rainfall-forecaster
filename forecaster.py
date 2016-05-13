@@ -170,10 +170,12 @@ def select_magnitude(month, data):
     return random.choice(mag[(mag.index.month == month)])
 
 
-def probability_of_first_day_rain(month, data):
+def probability_of_first_day_rain(month, data, monthly_probs=None):
     """
     Returns the probability of rain following a dry day
     """
+    if monthly_probs and month in monthly_probs:
+        return monthly_probs[month]
     day1_rain = [0]
     for row in xrange(1, len(data)):
         if np.isnan(data[row-1]) and np.isnan(data[row]) == False:
@@ -184,7 +186,10 @@ def probability_of_first_day_rain(month, data):
     first_day = pd.Series(day1_rain, index=data.index, name='Day1')
     first_day_frequency = first_day.groupby(pd.TimeGrouper(freq='M')).sum()
     lam = get_lambda(first_day_frequency)
-    return (float(np.random.poisson(lam[month])))/30
+    result = (float(np.random.poisson(lam[month])))/30
+    if monthly_probs:
+        monthly_probs[month] = result
+    return result
 
 
 def decision(probability):
@@ -199,6 +204,7 @@ if __name__ == '__main__':
     index = pd.date_range('1/1/2000', '1/5/2000')
     data = get_rainfall(DATES)[SELECTED_GAGE]
     conditional_probability = conditional_probability()
+    monthly_probs = {}
 
     for day in xrange(len(index)):
         print day
@@ -206,7 +212,7 @@ if __name__ == '__main__':
 
         if len(rain) < 5:
             # may contribute some bias towards rain for first four days of forecast
-            probability = probability_of_first_day_rain(month, data)
+            probability = probability_of_first_day_rain(month, data, monthly_probs=monthly_probs)
             it_rains = decision(probability)
             if it_rains:
                 rain.append(round(select_magnitude(month, data), 1))
@@ -214,7 +220,7 @@ if __name__ == '__main__':
                 rain.append(0)
 
         elif rain[day-1] == 0:
-            probability = probability_of_first_day_rain(month, data)
+            probability = probability_of_first_day_rain(month, data, monthly_probs=monthly_probs)
             it_rains = decision(probability)
             if it_rains:
                 rain.append(round(select_magnitude(month, data), 1))
